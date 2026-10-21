@@ -228,7 +228,7 @@ function ambience(dt,mins){
 }
 
 // ---------- time ----------
-function hourTick(){const h=Math.floor(S.time/60);while(S.lastHour<h){S.lastHour++;hourly();if(!S.demo)questScheduler();if(S.lastHour%24===6){daily();if(!S.demo){socialDaily();animalsDaily();genRequests()}}if(!S.demo)offersTick();if(S.lastHour%24===12){sfxAt('bell',bOf('townhall').door.x,bOf('townhall').door.y);if(day()>=S.town.nextElection){if(S.demo)S.town.nextElection+=7;else runElection()}}}}
+function hourTick(){const h=Math.floor(S.time/60);while(S.lastHour<h){S.lastHour++;hourly();if(!S.demo)questScheduler();if(S.lastHour%24===6){daily();staffDaily();if(!S.demo){socialDaily();animalsDaily();genRequests()}}if(!S.demo)offersTick();if(S.lastHour%24===12){sfxAt('bell',bOf('townhall').door.x,bOf('townhall').door.y);if(day()>=S.town.nextElection){if(S.demo)S.town.nextElection+=7;else runElection()}}}}
 function growCrops(mins){const g=cropGrowthPerMin()*mins;for(let j=0;j<S.crops.length;j++)if(S.crops[j]<1.2)S.crops[j]+=g}
 function simulate(dt){if(UI.blocking&&!S.demo)return;const mins=dt*SET.speed;S.time+=mins;hourTick();growCrops(mins);
   if(!S.demo){playerUpdate(dt,mins);combatTick(dt);lawTick(dt);farmGrow(mins);bountyTick();slowT-=dt;if(slowT<=0){slowT=1;animalsFromPack();checkQuestGoals()}}

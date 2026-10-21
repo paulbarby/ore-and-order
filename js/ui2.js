@@ -20,10 +20,10 @@ function bizPortrait(z){if(!z)return portrait('merchant');if(z.owner==='player')
   return portrait({refinery:'refiner',smelter:'refiner',smithy:'smith',forge:'smith',bakery:'baker',bakehouse:'baker'}[z.type]||'merchant')}
 function winBiz(b){const z=b.bizId?bizById(b.bizId):null;if(!z)return'<p>This business has closed.</p>';const T=BIZ_TYPES[z.type],own=z.owner==='player';
   $('#winPortrait').src=bizPortrait(z);$('#winGreet').textContent=own?'This is your business.':z.type==='peddler'?'Rare goods from far away. Today only!':`Owner: ${ownerName(z.owner)}. ${T.station?'Made here with a '+STATION_NAME[T.station].toLowerCase()+'.':'A shop that buys from makers and sells to the town.'}`;
-  const list=[];if(T.retail)list.push(['shop','Shop']);else list.push(['shop','Output']);if(T.station)list.push(['craft','Craft']);if(T.station||T.retail&&z.type!=='peddler')list.push(['work','Work']);if(z.type!=='peddler'){list.push(['info','Info']);list.push(own?['manage','Manage']:['buy','Buy it'])}
+  const list=[];if(T.retail)list.push(['shop','Shop']);else list.push(['shop','Output']);if(T.station)list.push(['craft','Craft']);if(T.station||T.retail&&z.type!=='peddler')list.push(['work','Work']);if(usesStaff(z))list.push(['staff','Staff']);if(z.type!=='peddler'){list.push(['info','Info']);list.push(own?['manage','Manage']:['buy','Buy it'])}
   let t=UI.winTab.biz||'shop';if(!list.some(x=>x[0]===t))t='shop';
   let h=tabs('w:biz',list,t);if(z.closedUntil>S.time)h+=`<div class="banner bad">Closed after a fire. It opens again in ${hrsLeft(z.closedUntil)}.</div>`;
-  if(t==='shop')h+=T.retail?bizShop(z):bizOutput(z);else if(t==='craft')h+=bizCraft(z);else if(t==='work')h+=bizWork(z);else if(t==='info')h+=bizInfo(z);else if(t==='manage')h+=bizManage(z);else h+=bizBuy(z);
+  if(t==='shop')h+=T.retail?bizShop(z):bizOutput(z);else if(t==='craft')h+=bizCraft(z);else if(t==='work')h+=bizWork(z);else if(t==='info')h+=bizInfo(z);else if(t==='manage')h+=bizManage(z);else if(t==='staff')h+=bizStaff(z);else h+=bizBuy(z);
   return h}
 function bizShop(z){const p=S.player,goods=Object.keys(z.type==='peddler'?z.inv:z.make).filter(k=>sellsGood(z,k)||(z.inv[k]||0)>0);
   let h=`<table class="prices"><tr><th></th><th>Good</th><th>Price</th><th>Stock</th><th>Town demand</th><th></th></tr>`;

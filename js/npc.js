@@ -92,7 +92,7 @@ function npcTick(n,dt,mins){
     if(h>=7&&h<18&&!postOf(n))n.state='idle';if(postOf(n)&&h>=8&&h<18)n.state='post';break}
   }
 }
-function postOf(n){if(n.story)return bOf((CHARS[n.story]&&CHARS[n.story].home)||'inn');if(n.cls==='clerk')return bOf('office');if(n.cls==='banker')return bOf('bank');if(n.cls==='mayor'&&S.town.mayor===n.id)return bOf('townhall');
+function postOf(n){if(n.mgrOf){const z=bizById(n.mgrOf);if(z&&z.manager&&z.manager.id===n.id)return bldOfBiz(z);n.mgrOf=null}if(n.story)return bOf((CHARS[n.story]&&CHARS[n.story].home)||'inn');if(n.cls==='clerk')return bOf('office');if(n.cls==='banker')return bOf('bank');if(n.cls==='mayor'&&S.town.mayor===n.id)return bOf('townhall');
   if(n.cls==='merchant'){const z=S.biz.find(z=>z.owner===n.id&&!BIZ_TYPES[z.type].station);return z?bldOfBiz(z):null}return null}
 function peddleTick(n,dt,mins){n.chatCD-=dt;if(n.chatCD<=0){n.chatCD=rnd(15,30);if(nearPlayer(n,14))say(n,pick(['Rare goods! Fair prices!','Steel drills from the East!','Only today in your valley!']))}
   n.dir=Math.sin(S.time/20)>0?1:-1}
@@ -117,6 +117,7 @@ function chatter(n){const v=S.money.v;
 
 function decide(n){const h=S.time/60%24,P=S.money.P,day_=h>=6&&h<20;
   const full=load(n)>=n.cap*.8;if(full&&!(n.sellFail>S.time-360)){n.state='sell';return}
+  if(staffDecide(n,h))return;
   if(n.cls==='sheriff'){n.state='patrol';n.dest=null;return}
   if(postOf(n)||['clerk','banker','merchant'].includes(n.cls)||(n.cls==='mayor'&&S.town.mayor===n.id)){n.state=h>=8&&h<18&&postOf(n)?'post':'wander';n.dest=null;if(n.cls!=='merchant'||postOf(n))return}
   const wanted=d=>S.market.stock[d.type]<target(d.type)*4&&!(d.closed>S.time);
@@ -178,6 +179,7 @@ function labourTick(n,dt,mins){const z=bizById(n.work),b=bldOfBiz(z);if(!z||!b||
   if(!go(n,n.spot.x,n.spot.y,dt))return;
   n.timer+=mins;if(BIZ_TYPES[z.type].station==='anvil'&&Math.random()<dt*.6){n.swing=1;if(onScreen(n.x,n.y)){fx.sparks(n.x+n.dir*.5,n.y-.4,5);if(Math.random()<.4)sfxAt('anvil',n.x,n.y)}}
   if(n.timer>=60){n.timer=0;
+    if(n.employer===z.id){staffHour(z,n);const hh=S.time/60%24;if(hh>=18||n.absentDay===day()){n.state='idle';n.spot=null}else if(Math.random()<.2)n.spot=null;return}
     if(z.job||z.labour<2){if(z.cash>=z.wage&&z.wage>0){z.cash-=z.wage;z.today.wages+=z.wage;n.cash+=z.wage;z.labour+=BIZ_TYPES[z.type].cls===n.cls?1.5:1;n.shifts++}
       else{say(n,'No wages today!');n.state='wander';n.dest=null;n.spot=null;return}}
     else if(Math.random()<.5){n.state='idle';n.spot=null;return}
@@ -189,7 +191,7 @@ function npcWork(n){const P=S.money.P;
   switch(n.state){
     case'mine':if(n.target){const p=plotAt(n.target.x,n.target.y);return n.cls==='hauler'?`I pump oil at plot ${p.px},${p.py}. Crude sells for ${money(price('oil'))} a barrel.`:
       `I work a ${GOODS[n.target.type].n.toLowerCase()} seam on plot ${p.px},${p.py}${mayMine(n.id,p)?'':' (do not tell the sheriff)'}. It sells for ${money(price(n.target.type))}.`}break;
-    case'labour':{const z=bizById(n.work);if(z)return`I work at the ${z.name}. They pay ${money(z.wage)} an hour.${z.cash<z.wage*5?' The money is running out.':''}`;break}
+    case'labour':{const z=bizById(n.work),e=z&&n.employer===z.id&&empOf(z,n.id);if(e)return`I work for you at the ${z.name} for ${money(e.wage)} an hour. ${e.morale>.85?'I like it here.':e.morale>.55?'It is fair work.':'The pay is too low, boss.'}`;if(z)return`I work at the ${z.name}. They pay ${money(z.wage)} an hour.${z.cash<z.wage*5?' The money is running out.':''}`;break}
     case'chop':return`I cut timber. It sells for ${money(price('wood'))} at the Market Hall.`;
     case'farm':return`I bring in the wheat. The bakers need ${GOODS.wheat.n.toLowerCase()} for bread. It sells for ${money(price('wheat'))}.`;
     case'patrol':return`I keep the law. ${S.stats.fines?'Some people jump claims.':'All quiet.'} The fine is ${money(S.town.fine*P)}.`;

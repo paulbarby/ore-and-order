@@ -87,6 +87,31 @@ Work stations: **furnace** (Refinery, Smelters), **anvil** (Smithy, Forges), **o
 - Value = building base × P + till cash + 60% of stock + 8 × average daily profit (last 7 days). Asking price: Town 115%, NPC owners 115% to 180% by opinion and reputation. Selling to the Town returns 80% of value.
 - Owner controls: shelf prices (fixed or auto), stock targets or what to make, wage, till cash in and out.
 
+## Staff and managers (`js/staff.js`)
+
+Applies to the player's workshops: every business with a work station (forge, bakehouse, smelter, smithy, bakery, refinery, outfitter). In these, only hired staff work. Casual workers still work in businesses that townsfolk own. Shops with no work station (General Store, Trading Post, Ranch Supply) need no staff.
+
+- **Staff tab** in the business window: your staff, people looking for work, and the manager.
+- **Hire.** Each applicant shows an interview impression of skill and work ethic (1–5 stars, close to the true value, not exact) and the pay they ask. Asking pay = the going rate in the same trade × (0.6 + 0.2 × skill + 0.1 × work ethic), × 1.1 when they know the trade, × 1.15 when they dislike you. Up to 6 staff.
+- **Hidden traits** for each person: skill 0.7–1.3, work ethic 0.6–1.3, reliability 0.76–0.99, management 0.3–1.0.
+- **Work.** Staff work 07:00–18:00. Labour each hour = skill × work ethic × (0.7 + 0.3 × mood) × 1.5 for the right trade × 1.15 (trained staff) × (1 + manager boost). The till pays the full wage for each hour of work and 20% of it for each standby hour, when there is nothing to make.
+- **Mood** moves 40% each day toward 0.65 + 1.5 × (pay ÷ going rate − 1), +0.08 with a manager, −0.08 for each unpaid hour. Below 0.3, a worker has a 35% chance each day to quit. Daily chance to be absent = (1 − reliability) × (1.6 − mood), halved with a manager.
+- **Reviews** every 7 days, or with the Review button after 4 hours of work. Stars = (own output − 0.45) ÷ 0.8 × 4 + 1 + (attendance − 85%) × 5, −0.5 when unhappy, from 1 to 5. "Own output" leaves out the trade, trained-staff and manager bonuses, so the stars rate the person. The text names output, missed days, mood and trade. The last 8 reviews are kept. Click a name to see all of them.
+- **Pay** − and + for each worker. A raise lifts mood at once; a cut lowers it.
+- **Let go.** The worker's opinion of you drops 12 (4 after a review of 2 stars or fewer); their family's drops 4 (1).
+- **Work used** = hours with work ÷ paid hours, yesterday. Under 40%: too many staff. Over 85%: too few.
+- **Manager.** Pay = (10 + 15 × management) × P a day plus 15% of each day's profit. The list shows the 2 best candidates and 1 cheaper one. Boost: staff work 8% + 17% × management faster and miss half as many days. Each morning the manager:
+  - waits 3 days after starting before cutting anything;
+  - lets go of a worker after a review of 2 stars or fewer;
+  - when the business lost money over the last 3 days, lets go of the worker with the lowest output per dollar (then waits 4 days before hiring), or, with one worker left, cuts pay that is more than 15% above the going rate;
+  - gives a raise when mood is under 0.55 and the business makes a profit;
+  - hires when work used is over 90% and the profit of the last 3 days covers 1.5 × the new worker's day pay (at most one hire every 3 days);
+  - lets go of the weakest worker when work used is under 40%;
+  - raises shelf prices on goods that sell out while the town is more than 30% short, and returns them to the town price when the shortage ends;
+  - plans production: makes what earns more than its cost, and stops a product only when it loses more than 5%.
+- **Without a manager** you do all of this yourself. The weekly reviews still come.
+- Test results (14 game days, 2 worlds, sum of profit): bakehouse casual workers +$48, 1 baker +$197, 2 bakers −$1,120; smelter 2 workers +$2,705, 2 workers with a manager +$2,679 after the manager's pay (about $800). A manager adds about 30% before its pay; for a small business that is about what it costs.
+
 ## Eating
 
 - Bread restores 35 hunger. Press F, click Eat on the HUD, or click Eat in the Pack.

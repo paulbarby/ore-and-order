@@ -108,7 +108,7 @@ function restock(z){const T=BIZ_TYPES[z.type],own=T.station?new Set(RECIPES[T.st
 
 // ---------- labour market ----------
 function pickJob(n){let best=null,bs=-1;
-  for(const z of S.biz){const T=BIZ_TYPES[z.type];if(!T.station||z.closedUntil>S.time||z.wage<=0||z.cash<z.wage||!(z.job||z.labour<2))continue;
+  for(const z of S.biz){const T=BIZ_TYPES[z.type];if(!T.station||usesStaff(z)||z.closedUntil>S.time||z.wage<=0||z.cash<z.wage||!(z.job||z.labour<2))continue;
     const skill=T.cls===n.cls?1.6:1,s=z.wage*skill/(1+workersAt(z)*.35)*rnd(.85,1.15);if(s>bs){bs=s;best=z}}
   return best}
 
