@@ -2,6 +2,12 @@
 
 A browser life simulation in a frontier mining valley. You are one person in a procedural world. Every NPC has a class and a daily routine. Land, law, wages, shops, supply and demand, money and town government are simulated.
 
+## Play online
+
+https://paulbarby.github.io/ore-and-order/ (GitHub Pages, branch `main`, folder `/`). A push to `main` publishes the new version in about a minute. Change the `?v=N` tags in `index.html` with each release, so browsers fetch the new scripts.
+
+Saves stay in each player's own browser (localStorage). The online game and a local copy keep separate saves.
+
 ## Run it
 
 ```
