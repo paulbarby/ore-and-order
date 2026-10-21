@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ore &amp; Order</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css?v=37">
+</head>
+<body>
+<div id="app">
+  <canvas id="view"></canvas>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="hudTL" class="glass">
+      <img id="hPortrait" alt="" onclick="togglePanel('char')">
+      <div class="who"><b id="hName"></b><span id="hRank"></span>
+        <div class="bars">
+          <div class="bar energy"><i id="hEnergy"></i><span>⚡ <em id="hEnergyN"></em></span></div>
+          <div class="bar hunger"><i id="hHunger"></i><span>🍞 <em id="hHungerN"></em></span></div>
+          <div class="bar hp" data-tip="Health. It comes back slowly out of a fight. Bandages and tonics heal at once."><i id="hHp"></i><span>❤ <em id="hHpN"></em></span></div>
+          <div class="bar sta" data-tip="Stamina. Attacks and rolls use it. It refills in a moment."><i id="hSta"></i><span>💨 <em id="hStaN"></em></span></div>
+        </div>
+        <button id="eatBtn" onclick="eatQuick()" data-tip="Eat a loaf of bread (F). Buy bread at the Bakery or a store, or eat stew at the Inn.">🍞 Eat <b id="hBread">0</b></button>
+        <div id="hPlot" class="plotline"></div>
+      </div>
+    </div>
+    <div id="hudTC" class="glass">
+      <div class="clockrow"><b id="hDay"></b><span id="hTime"></span><span id="hWeather"></span></div>
+      <div class="sunline"><i id="sunDot"></i></div>
+    </div>
+    <div id="hudTR">
+      <div class="glass wallet-h">
+        <div data-tip="Bank notes: paper money the Bank issues"><img class="ico" id="icNotes"><b id="wNotes"></b></div>
+        <div data-tip="Silver coins"><img class="ico" id="icSilver"><b id="wSilver"></b></div>
+        <div data-tip="Gold coins"><img class="ico" id="icGold"><b id="wGold"></b></div>
+        <div data-tip="What one bank note buys, in cents of silver. 100¢ = full value."><small>NOTE</small><b id="wValue"></b></div>
+        <div data-tip="Carry load"><small>LOAD</small><b id="wLoad"></b></div>
+      </div>
+      <div class="glass mm"><canvas id="minimap" width="240" height="180"></canvas><button class="mmbtn" onclick="UI.overlay=!UI.overlay" data-tip="Ownership map (M)">⛳</button></div>
+    </div>
+    <div id="goalBox" class="glass" onclick="togglePanel('goals')" data-tip="Your next goal. Click for all goals (G)."></div>
+    <div id="eventBar"></div>
+    <div id="mayorBadge" class="glass hidden"></div>
+    <div id="feed"></div>
+    <div id="equipBar" class="glass"></div>
+    <div id="quickbar" class="glass"></div>
+    <div id="wantedBar"></div>
+    <div id="questTrack" class="glass hidden" onclick="togglePanel('quests')" data-tip="Your tracked quest. Click for all quests (Q)."></div>
+    <div id="hotbar" class="glass">
+      <button data-p="pack" onclick="togglePanel('pack')"><span>🎒</span>Pack<kbd>I</kbd></button>
+      <button data-p="char" onclick="togglePanel('char')"><span>🤠</span>Character<kbd>C</kbd></button>
+      <button data-p="land" onclick="togglePanel('land')"><span>📜</span>Land<kbd>L</kbd></button>
+      <button data-p="journal" onclick="togglePanel('journal')"><span>📓</span>Journal<kbd>J</kbd></button>
+      <button data-p="town" onclick="togglePanel('town')"><span>🏛</span>Town<kbd>T</kbd></button>
+      <button data-p="craft" onclick="togglePanel('craft')"><span>🔨</span>Craft<kbd>K</kbd></button>
+      <button data-p="props" onclick="togglePanel('props')"><span>🏪</span>Business<kbd>P</kbd></button>
+      <button data-p="quests" onclick="togglePanel('quests')"><span>📜</span>Quests<kbd>Q</kbd></button>
+      <button data-p="goals" onclick="togglePanel('goals')"><span>🎯</span>Goals<kbd>G</kbd></button>
+      <button data-p="leaders" onclick="togglePanel('leaders')"><span>🏆</span>Leaders<kbd>B</kbd></button>
+      <button onclick="UI.overlay=!UI.overlay"><span>⛳</span>Owners<kbd>M</kbd></button>
+      <button onclick="showScreen('pause')"><span>☰</span>Menu<kbd>Esc</kbd></button>
+    </div>
+    <div id="toasts"></div>
+  </div>
+
+  <!-- slide-over panel -->
+  <aside id="panel" class="glass"><header><h2 id="panelTitle"></h2><button class="x" onclick="closePanel()">✕</button></header><div id="panelBody"></div></aside>
+
+  <!-- building window -->
+  <div id="win"><div class="winbox glass">
+    <div class="winleft"><img id="winPortrait" alt=""><h2 id="winName"></h2><p id="winGreet"></p><div id="winSide"></div><button class="leave" onclick="closeWin()">Leave <kbd>Esc</kbd></button></div>
+    <div id="winBody"></div></div></div>
+
+  <!-- dialogue -->
+  <div id="dialog" class="glass"><img id="dlgPortrait" alt=""><div class="dlgmain"><div id="dlgName"></div><div id="dlgMood"></div><p id="dlgText"></p><div id="dlgOpts"></div></div></div>
+
+  <div id="mg"><div class="mgbox glass"><header><img id="mgIcon" class="ico big" alt=""><div><h2 id="mgTitle"></h2><p id="mgHelp"></p></div></header>
+    <canvas id="mgCanvas"></canvas><footer><span id="mgStatus"></span><button id="mgSkip" onclick="mgSkip()">Do it the plain way (Fair)</button><button id="mgAgain" class="gold" onclick="mgAgain()">Again</button><button id="mgQuit" onclick="mgClose()">Stop</button></footer></div></div>
+  <div id="elect"><div class="glass electbox" id="electBody"></div></div>
+  <div id="fader"><span></span></div>
+  <div id="tooltip"></div>
+
+  <!-- screens -->
+  <section id="loading" class="screen"><div class="loadbox"><div class="spinner"></div><p>Surveying the valley...</p></div></section>
+
+  <section id="title" class="screen">
+    <div class="titlebox">
+      <div class="logo"><span class="l1">ORE</span><span class="amp">&amp;</span><span class="l2">ORDER</span></div>
+      <p class="sub">A frontier life of claims, coin and law</p>
+      <div class="menu">
+        <button class="gold" id="btnContinue" onclick="loadGame()">Continue</button>
+        <button onclick="openCreator()">New Game</button>
+        <button onclick="showScreen('howto')">How to Play</button>
+        <button onclick="showScreen('settings')">Settings</button>
+      </div>
+      <p class="foot">Every world is new. Every miner has a name. Every note is a promise.</p>
+    </div>
+  </section>
+
+  <section id="newgame" class="screen">
+    <div class="sheet glass">
+      <h1>A New Arrival</h1>
+      <div class="creator">
+        <div class="cleft"><img id="ngPortrait" alt=""><label>Name<input id="ngName" maxlength="24"></label>
+          <label>Skin</label><div id="ngSkins" class="swatches"></div><label>Hair</label><div id="ngHairs" class="swatches"></div></div>
+        <div class="cright"><label>Background</label><div id="ngBgs"></div>
+          <label>World seed <small class="dim">(the same seed makes the same valley)</small></label>
+          <div class="row"><input id="ngSeed" type="number"><button onclick="NEW.seed=Math.floor(Math.random()*9e8);renderCreator()">🎲 New valley</button></div></div>
+      </div>
+      <div class="row end"><button onclick="showScreen('title')">Back</button><button class="gold big" onclick="beginNew()">Enter the valley</button></div>
+    </div>
+  </section>
+
+  <section id="howto" class="screen">
+    <div class="sheet glass howto">
+      <h1>How to Play</h1>
+      <div class="cols">
+        <div><h3>Move and act</h3><ul>
+          <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrow keys to walk. Or click the ground.</li>
+          <li><kbd>E</kbd> or <kbd>Space</kbd> to enter a door, talk to a person, or strike a deposit. Hold it to keep mining.</li>
+          <li>Mouse wheel or <kbd>+</kbd> <kbd>-</kbd> to zoom.</li>
+          <li><kbd>F</kbd> eat bread. <kbd>I</kbd> Pack · <kbd>C</kbd> Character · <kbd>L</kbd> Land · <kbd>J</kbd> Journal · <kbd>T</kbd> Town · <kbd>Q</kbd> Quests · <kbd>M</kbd> Owners map.</li></ul>
+        <h3>Fight</h3><ul>
+          <li>Click to attack at the mouse pointer (or hold <kbd>X</kbd>). Click again fast for a combo. The last hit of a combo hits hardest.</li>
+          <li>Hold the click to charge a heavy blow. It breaks through and knocks enemies back.</li>
+          <li><kbd>Shift</kbd> or right-click to roll. A roll at the last moment is a <b>perfect dodge</b>: time slows and your next hit is critical.</li>
+          <li>Guns need cartridges. <kbd>R</kbd> reloads. Quick bar: <kbd>1</kbd> bandage · <kbd>2</kbd> tonic · <kbd>3</kbd> dynamite · <kbd>4</kbd> torch · <kbd>5</kbd> food.</li>
+          <li>If your health reaches zero you wake at the inn. The doctor takes a quarter of your notes.</li></ul>
+        <h3>Stay alive</h3><ul><li>Mining and work use energy. Sleep at the Inn.</li><li>Hunger goes down all day. Eat bread or stew.</li><li>If energy reaches zero you collapse and pay a doctor.</li></ul></div>
+        <div><h3>Land and law</h3><ul>
+          <li>Ore belongs to the owner of the plot. Stake Crown land at the Land Office.</li>
+          <li>Buy land from its owner, or lease mining rights for 3 days.</li>
+          <li>Claim jumping (mining land that is not yours) can get you fined.</li>
+          <li>Owners pay land tax each day. Three unpaid days and the Crown takes the plot.</li></ul>
+        <h3>Work and trade</h3><ul><li>Sell ore at the Market. Prices fall when the shelves are full.</li><li>The Refinery turns ore into metal. The Smithy turns metal into tools. Work shifts there for wages.</li><li>Tools change your stats. A pickaxe gives more ore. A lantern lets you mine at night.</li></ul></div>
+        <div><h3>Shops and demand</h3><ul>
+          <li>The town wants bread, fuel and tools every day. Shops never quite keep up. The notice board in the plaza lists orders: deliver goods there for good money.</li>
+          <li>Craft at a furnace, an anvil or an oven (<kbd>K</kbd>). Cut timber with an axe. Harvest wheat in the fields.</li>
+          <li>Buy any business, or buy a town lot and build one. You set its prices, what it makes and the wage (<kbd>P</kbd>).</li>
+          <li>Stand for mayor at Town Hall. The mayor sets taxes, the bread price cap, note printing and town projects.</li>
+          <li>Goals (<kbd>G</kbd>) and weekly challenges give rewards. The Leaderboard (<kbd>B</kbd>) ranks you against the town each week.</li></ul>
+        <h3>Caves, quests and the law</h3><ul>
+          <li>Seven caves lie in the hills. Each level is deeper and more dangerous. Mine gem veins with a pickaxe. Dynamite opens cracked walls with hidden rooms.</li>
+          <li>A <b>!</b> over a person means a quest. A <b>?</b> means they wait for you. The main story starts with the mayor.</li>
+          <li>People have families and friends. If you hurt or kill a person, the sheriff hunts you and their kin want revenge. Kill twice and a posse rides out. Surrender to the sheriff to settle.</li>
+          <li>The Sheriff posts bounties. Some want the outlaw alive: beat them until they give up, press <kbd>E</kbd> to tie them and walk them in.</li>
+          <li>Own a plot to farm: till with a hoe, plant seeds, water with a can. Buy chickens, sheep, cows and pigs at the Ranch.</li></ul>
+        <h3>Money</h3><ul>
+          <li>Three kinds of money: <b>bank notes</b> (paper), <b>silver coins</b> and <b>gold coins</b>.</li>
+          <li>The Bank keeps silver and gold in its vault. A note keeps its full value while the vault holds enough metal.</li>
+          <li>Town Hall prints new notes to pay its bills. Too many notes and each note buys less: prices go up.</li>
+          <li>If the vault runs low, the Bank stops changing notes for coin.</li>
+          <li>The Mint makes coins from silver and gold ingots.</li>
+          <li>Borrow from the Bank against your land. Repay in 10 days or lose the land.</li></ul></div>
+      </div>
+      <div class="row end"><button class="gold" onclick="showScreen(S.demo?'title':'pause')">Back</button></div>
+    </div>
+  </section>
+
+  <section id="settings" class="screen">
+    <div class="sheet glass narrow"><h1>Settings</h1>
+      <div class="set"><label>Master volume</label><input type="range" min="0" max="1" step=".05" data-set="master"></div>
+      <div class="set"><label>Sound effects</label><input type="range" min="0" max="1" step=".05" data-set="sfx"></div>
+      <div class="set"><label>Ambience</label><input type="range" min="0" max="1" step=".05" data-set="amb"></div>
+      <div class="set"><label>Music</label><input type="range" min="0" max="1" step=".05" data-set="music"></div>
+      <div class="set"><label>Game speed <small class="dim">(game minutes each second)</small></label><input type="range" min="3" max="20" step="1" data-set="speed"><b id="spdVal"></b></div>
+      <div class="set"><label>Particle effects</label><input type="range" min=".25" max="1" step=".25" data-set="fx"></div>
+      <div class="row end"><button class="gold" onclick="showScreen(S.demo?'title':'pause')">Back</button></div>
+    </div>
+  </section>
+
+  <section id="workshop" class="screen">
+    <div class="sheet glass workshop"><h1>Quest Workshop</h1>
+      <p class="dim">Write your own quests in the quest script. Check finds mistakes. Load adds the quests to this game and keeps them in this browser for every new game.</p>
+      <div class="wsgrid"><textarea id="wsText" spellcheck="false"></textarea><div id="wsOut" class="wsout"></div></div>
+      <div class="row end"><button onclick="wsHelp()">Script reference</button><button onclick="$('#wsText').value=WORKSHOP_SAMPLE;wsCheck()">Example quest</button><button onclick="wsCheck()">Check</button><button class="gold" onclick="wsLoad()">Load into the game</button><button onclick="showScreen(S.demo?'title':'pause')">Back</button></div>
+    </div>
+  </section>
+
+  <section id="pause" class="screen">
+    <div class="titlebox small"><div class="logo sm"><span class="l1">ORE</span><span class="amp">&amp;</span><span class="l2">ORDER</span></div>
+      <div class="menu"><button class="gold" onclick="resume()">Resume</button><button onclick="saveGame()">Save game</button><button onclick="showScreen('howto')">How to Play</button><button onclick="openWorkshop()">Quest Workshop</button><button onclick="showScreen('settings')">Settings</button><button onclick="quitToTitle()">Save and quit to title</button></div></div>
+  </section>
+</div>
+
+<script src="js/core.js?v=37"></script>
+<script src="js/world.js?v=37"></script>
+<script src="js/econ.js?v=37"></script>
+<script src="js/biz.js?v=37"></script>
+<script src="js/events.js?v=37"></script>
+<script src="js/data2.js?v=37"></script>
+<script src="js/npc.js?v=37"></script>
+<script src="js/fx.js?v=37"></script>
+<script src="js/render.js?v=37"></script>
+<script src="js/icons2.js?v=37"></script>
+<script src="js/sprites2.js?v=37"></script>
+<script src="js/ents.js?v=37"></script>
+<script src="js/combat.js?v=37"></script>
+<script src="js/caves.js?v=37"></script>
+<script src="js/quests.js?v=37"></script>
+<script src="js/social.js?v=37"></script>
+<script src="js/farm.js?v=37"></script>
+<script src="js/questdata.js?v=37"></script>
+<script src="js/ui.js?v=37"></script>
+<script src="js/ui2.js?v=37"></script>
+<script src="js/ui3.js?v=37"></script>
+<script src="js/minigames.js?v=37"></script>
+<script src="js/main.js?v=37"></script>
+<script>
+  // static icons and settings bindings
+  document.getElementById('icNotes').src=iconOf('notes');document.getElementById('icSilver').src=iconOf('silver');document.getElementById('icGold').src=iconOf('gold');
+  document.querySelectorAll('[data-set]').forEach(el=>{const k=el.dataset.set;el.value=SET[k];const upd=()=>{SET[k]=+el.value;if(k==='speed')document.getElementById('spdVal').textContent=SET.speed;saveSettings()};el.oninput=upd;upd()});
+</script>
+</body>
+</html>

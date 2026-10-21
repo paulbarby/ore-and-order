@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ore and Order</title>
+<style>
+:root{--bg:#14161a;--panel:#1d2026;--line:#333842;--text:#e4e6ea;--dim:#9aa1ad;--acc:#e0a93b;--bad:#e05a4f;--good:#5fbf73}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:13px/1.4 system-ui,Segoe UI,sans-serif;display:flex;height:100vh;overflow:hidden}
+#wrap{flex:1;position:relative}
+canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
+#hud{position:absolute;left:8px;top:8px;background:#000a;padding:6px 10px;border-radius:6px;pointer-events:none;white-space:pre}
+#help{position:absolute;left:8px;bottom:8px;background:#000a;padding:6px 10px;border-radius:6px;color:var(--dim);font-size:12px;pointer-events:none}
+#side{width:340px;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column}
+#side h3{margin:0;padding:8px 10px;font-size:13px;border-bottom:1px solid var(--line);color:var(--acc)}
+#ctx{padding:8px 10px;overflow:auto;flex:1}
+#log{height:180px;overflow:auto;padding:6px 10px;border-top:1px solid var(--line);font-size:12px;color:var(--dim)}
+table{width:100%;border-collapse:collapse}td{padding:2px 4px;border-bottom:1px solid #2a2e36}
+button{background:#2c313a;color:var(--text);border:1px solid #444b57;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:12px}
+button:hover{background:#3a414d}button:disabled{opacity:.4;cursor:default}
+.bad{color:var(--bad)}.good{color:var(--good)}.dim{color:var(--dim)}
+@media(max-width:700px){body{flex-direction:column}#side{width:100%;height:45vh}}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c"></canvas><div id="hud"></div>
+<div id="help">WASD move · E act (mine / enter) · B land office for this plot · O ownership map · I inventory · N new world</div></div>
+<div id="side"><h3 id="ctxTitle">Inventory</h3><div id="ctx"></div><div id="log"></div></div>
+<script>
+// ---------- seeded RNG + noise ----------
+let SEED = +(location.hash.slice(1)) || (Math.random()*1e9|0);
+function mulberry(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+let R = mulberry(SEED);
+const ri=(a,b)=>a+Math.floor(R()*(b-a+1)), pick=a=>a[Math.floor(R()*a.length)];
+function makeNoise(seed){const p=mulberry(seed),g={};const h=(x,y)=>{const k=x+','+y;return g[k]??(g[k]=p())};
+ const s=t=>t*t*(3-2*t);return(x,y)=>{const xi=Math.floor(x),yi=Math.floor(y),xf=s(x-xi),yf=s(y-yi);
+ const a=h(xi,yi),b=h(xi+1,yi),c=h(xi,yi+1),d=h(xi+1,yi+1);return a+(b-a)*xf+(c-a)*yf+(a-b-c+d)*xf*yf}}
+function fbm(n,x,y){let v=0,a=.5,f=1;for(let i=0;i<4;i++){v+=a*n(x*f,y*f);a/=2;f*=2}return v/.9375}
+
+// ---------- goods, items, recipes ----------
+const G = {
+ iron_ore:{n:'Iron ore',p:8}, copper_ore:{n:'Copper ore',p:10}, coal:{n:'Coal',p:5}, gold_ore:{n:'Gold ore',p:40}, oil:{n:'Oil',p:12},
+ iron_ingot:{n:'Iron ingot',p:30}, copper_ingot:{n:'Copper ingot',p:34}, gold_ingot:{n:'Gold ingot',p:120}, fuel:{n:'Fuel',p:30},
+ bread:{n:'Bread',p:6},
+ pickaxe:{n:'Pickaxe',p:90,item:{slot:'tool',stat:'mine',v:1,dur:250,d:'+1 ore per strike'}},
+ boots:{n:'Boots',p:70,item:{slot:'feet',stat:'speed',v:.35,dur:600,d:'+35% walk speed'}},
+ backpack:{n:'Backpack',p:80,item:{slot:'back',stat:'cap',v:30,dur:9999,d:'+30 carry capacity'}},
+ lantern:{n:'Lantern',p:60,item:{slot:'hand',stat:'night',v:1,dur:400,d:'Mine at full rate at night'}},
+ ring:{n:'Gold ring',p:300,item:{slot:'ring',stat:'trade',v:.1,dur:9999,d:'+10% sell price, -10% buy price'}},
+};
+const ORE_COLOR={iron_ore:'#b0603a',copper_ore:'#3fb8a0',coal:'#222',gold_ore:'#ffd23f',oil:'#7a4bd0'};
+const RECIPES={
+ refinery:[{out:'iron_ingot',in:{iron_ore:2,coal:1},t:4},{out:'copper_ingot',in:{copper_ore:2,coal:1},t:4},
+           {out:'gold_ingot',in:{gold_ore:2,coal:1},t:6},{out:'fuel',in:{oil:2},t:3}],
+ smithy:[{out:'pickaxe',in:{iron_ingot:2},t:8},{out:'boots',in:{iron_ingot:1,copper_ingot:1},t:7},{out:'backpack',in:{copper_ingot:2},t:7},
+         {out:'lantern',in:{copper_ingot:1,fuel:1},t:6},{out:'ring',in:{gold_ingot:1},t:10}],
+ bakery:[{out:'bread',in:{},t:2}],
+};
+
+// ---------- world ----------
+const W=112,H=84,T=16,PS=8; // tiles, tile px, plot size
+let tiles, deposits, plots, buildings, npcs, player, market, time, logLines, overlay=false;
+const C={WATER:0,GRASS:1,FOREST:2,MOUNT:3,ROAD:4,FIELD:5};
+const TCOL=['#2c5b8a','#4f8a3c','#2f6330','#6f6a63','#9c8a63','#b7a24a'];
+
+function gen(){
+ R=mulberry(SEED); const nh=makeNoise(SEED+1), nm=makeNoise(SEED+2);
+ tiles=new Uint8Array(W*H); deposits=[]; plots=[]; buildings=[]; npcs=[]; logLines=[];
+ const cx=W/2,cy=H/2;
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+  const e=fbm(nh,x/18,y/18)-Math.hypot(x-cx,y-cy)/(W*1.1)+.25, m=fbm(nm,x/10,y/10);
+  let t=e<.33?C.WATER:e>.62?C.MOUNT:m>.6?C.FOREST:C.GRASS;
+  if(Math.hypot(x-cx,y-cy)<7&&t!==C.WATER) t=C.GRASS;
+  tiles[y*W+x]=t;
+ }
+ // town core
+ for(let y=cy-6;y<=cy+6;y++)for(let x=cx-6;x<=cx+6;x++)tiles[y*W+x]=C.GRASS;
+ for(let i=-6;i<=6;i++){tiles[cy*W+cx+i]=C.ROAD;tiles[(cy+i)*W+cx]=C.ROAD}
+ // plots
+ const PW=W/PS,PH=H/PS;
+ for(let py=0;py<PH;py++)for(let px=0;px<PW;px++)plots.push({id:py*PW+px,px,py,owner:'crown',lease:null});
+ // deposits
+ const types=['iron_ore','iron_ore','copper_ore','coal','coal','gold_ore'];
+ for(let i=0;i<4000&&deposits.length<70;i++){
+  const x=ri(1,W-2),y=ri(1,H-2),t=tiles[y*W+x];
+  if(Math.hypot(x-cx,y-cy)<9||deposits.some(d=>Math.abs(d.x-x)<3&&Math.abs(d.y-y)<3))continue;
+  if(t===C.MOUNT&&R()<.5){const type=pick(types),vein=R()<.12;
+   const max=vein?ri(15000,30000):ri(150,600)*(type==='gold_ore'?.4:1)|0;
+   deposits.push({x,y,type,amount:max,max,regen:0,vein});}
+  else if((t===C.GRASS||t===C.FOREST)&&R()<.03){const max=ri(80,200);deposits.push({x,y,type:'oil',amount:max,max,regen:.4,vein:false});}
+ }
+ // buildings (factories and shops own cash and stock)
+ const B=(kind,name,x,y,cash,col)=>buildings.push({kind,name,x,y,w:3,h:2,cash,col,inv:{},job:null,prog:0,labour:0,wage:kind==='bakery'?4:8});
+ B('market','Market',cx+1,cy-3,0,'#c9894a'); B('refinery','Refinery',cx-4,cy+1,600,'#7d7f88');
+ B('smithy','Smithy',cx+1,cy+1,500,'#a04a3a'); B('bakery','Bakery',cx-4,cy-3,200,'#d8b56a');
+ B('inn','Inn',cx-4,cy+4,0,'#6a4a8a'); B('office','Land Office',cx+1,cy+4,0,'#3a6a9a');
+ for(const b of buildings)for(let y=b.y;y<b.y+b.h;y++)for(let x=b.x;x<b.x+b.w;x++)tiles[y*W+x]=C.ROAD;
+ plotAt(cx,cy).owner='town'; plotAt(cx-1,cy-1).owner='town'; plotAt(cx-1,cy).owner='town'; plotAt(cx,cy-1).owner='town';
+ // farm fields
+ for(let k=0;k<4;k++){const fx=cx+ri(-14,10),fy=cy+ri(-14,10);
+  for(let y=fy;y<fy+4;y++)for(let x=fx;x<fx+5;x++)if(tiles[y*W+x]===C.GRASS)tiles[y*W+x]=C.FIELD;}
+ // market stock
+ market={stock:{}}; for(const k in G)market.stock[k]=k.endsWith('ore')||k==='coal'?40:k==='bread'?60:k==='oil'?20:G[k].item?2:8;
+ // npcs
+ const names='Ada Bram Cora Dov Edda Finn Gwen Hal Ivo Jun Kai Lev Mae Nils Ora Pim Quin Rua Sol Tova Ulf Vey Wren Yara Zed Ash Bo Cal Dee Eli'.split(' ');
+ const classes=[['miner',12],['refiner',5],['smith',4],['baker',3],['hauler',4]];
+ let n=0;for(const [cls,cnt] of classes)for(let i=0;i<cnt;i++){
+  npcs.push({id:'n'+n,name:names[n%names.length],cls,x:cx+R()*4-2,y:cy+R()*4-2,cash:ri(40,120),inv:{},cap:20,
+   hunger:100,state:'idle',target:null,timer:0,pick:R()<.4?1:0,col:{miner:'#e0a93b',refiner:'#9aa1ad',smith:'#e05a4f',baker:'#f2e3b0',hauler:'#5fbf73'}[cls]});n++;}
+ // some miners already own claims
+ npcs.filter(m=>m.cls==='miner').slice(0,6).forEach(m=>{const d=pick(deposits.filter(d=>d.type!=='oil'));const p=plotAt(d.x,d.y);if(p.owner==='crown')p.owner=m.id;});
+ player={x:cx+.5,y:cy+.5,cash:120,inv:{bread:3},equip:{},hunger:100,energy:100,cap:25,fines:0,name:'You',acc:0};
+ time=6*60; // minutes, day 1 06:00
+ log(`World ${SEED}. You arrive with $120. Stake a claim at the Land Office before you mine.`);
+}
+const plotAt=(x,y)=>plots[Math.floor(y/PS)*(W/PS)+Math.floor(x/PS)];
+const tileAt=(x,y)=>x<0||y<0||x>=W||y>=H?C.WATER:tiles[(y|0)*W+(x|0)];
+const bAt=(x,y)=>buildings.find(b=>x>=b.x&&x<b.x+b.w&&y>=b.y&&y<b.y+b.h+1);
+const ownerName=o=>o==='crown'?'Crown (unclaimed)':o==='town'?'Town':o==='player'?'You':(npcs.find(n=>n.id===o)?.name||o);
+const day=()=>Math.floor(time/1440)+1, hour=()=>Math.floor(time/60)%24;
+function plotValue(p){let v=60;for(const d of deposits)if(plotAt(d.x,d.y)===p)v+=Math.min(d.amount,3000)*G[d.type].p*.04;return Math.round(v)}
+
+// ---------- market (price follows stock) ----------
+const TARGET=k=>G[k].item?4:k==='bread'?50:30;
+function price(k){const s=market.stock[k];return Math.max(1,Math.round(G[k].p*Math.min(3,Math.max(.35,Math.sqrt(TARGET(k)/(s+1))))))}
+function tradeMod(a){return a===player&&player.equip.ring?player.equip.ring.v:0}
+function sell(a,k,q=1){q=Math.min(q,a.inv[k]||0);if(!q)return 0;let got=0;
+ for(let i=0;i<q;i++){got+=Math.round(price(k)*.9*(1+tradeMod(a)));market.stock[k]++;}
+ a.inv[k]-=q;a.cash+=got;return got}
+function buy(a,k,q=1){let n=0;for(let i=0;i<q;i++){const c=Math.round(price(k)*(1-tradeMod(a)));
+ if(market.stock[k]<1||a.cash<c)break;a.cash-=c;market.stock[k]--;a.inv[k]=(a.inv[k]||0)+1;n++;}return n}
+const load=a=>Object.values(a.inv).reduce((s,v)=>s+v,0);
+
+// ---------- law ----------
+function mayMine(who,p){if(p.owner===who)return true;if(p.lease&&p.lease.who===who&&p.lease.until>time)return true;return false}
+function trespass(a,p){
+ if(R()<.25){const f=40;const paid=Math.min(a.cash,f);a.cash-=paid;
+  if(p.owner!=='crown'&&p.owner!=='town'){const o=npcs.find(n=>n.id===p.owner);if(o)o.cash+=paid}
+  if(a===player){player.fines+=paid;log(`<span class=bad>Sheriff fined you $${paid} for mining on ${ownerName(p.owner)}'s land.</span>`)}
+  return true}return false}
+
+// ---------- input ----------
+const keys={};addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;
+ const k=e.key.toLowerCase();if(k==='e')act();if(k==='o')overlay=!overlay;if(k==='b')openOffice(true);if(k==='i')showInv();
+ if(k==='n'){location.hash=Math.random()*1e9|0;location.reload()}});
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+
+function nearDeposit(a){let best=null,bd=1.6;for(const d of deposits){const dd=Math.hypot(d.x+.5-a.x,d.y+.5-a.y);if(dd<bd&&d.amount>=1){bd=dd;best=d}}return best}
+function act(){
+ const b=bAt(player.x|0,player.y|0);if(b){openBuilding(b);return}
+ const d=nearDeposit(player);if(d){playerMine(d);return}
+ log('Nothing here. Walk to a deposit or a building door.');
+}
+function playerMine(d){
+ if(player.energy<2){log('<span class=bad>Too tired. Sleep at the Inn.</span>');return}
+ if(load(player)>=player.cap){log('<span class=bad>Pack full. Sell at the Market.</span>');return}
+ const p=plotAt(d.x,d.y);
+ if(!mayMine('player',p)){if(trespass(player,p))return;}
+ const night=hour()<6||hour()>=20;let q=1+(player.equip.tool?player.equip.tool.v:0);
+ if(night&&!player.equip.hand)q=R()<.5?q:0;
+ q=Math.min(q,Math.floor(d.amount),player.cap-load(player));
+ if(q<=0){log('Too dark to see the seam. A lantern helps.');player.energy-=1;return}
+ d.amount-=q;player.inv[d.type]=(player.inv[d.type]||0)+q;player.energy-=2;time+=5;
+ wear('tool');if(night)wear('hand');
+ if(d.amount<1&&!d.regen)log(`The ${G[d.type].n} deposit at ${d.x},${d.y} is exhausted.`);
+ showInv();
+}
+function wear(slot){const it=player.equip[slot];if(!it)return;it.dur--;if(it.dur<=0){log(`<span class=bad>Your ${G[it.k].n} broke.</span>`);delete player.equip[slot];recalc()}}
+function recalc(){player.cap=25+(player.equip.back?player.equip.back.v:0)}
+function equip(k){const it=G[k].item;if(!(player.inv[k]>0))return;
+ if(player.equip[it.slot])player.inv[player.equip[it.slot].k]=(player.inv[player.equip[it.slot].k]||0)+1;
+ player.inv[k]--;player.equip[it.slot]={k,v:it.v,dur:it.dur};recalc();showInv()}
+
+// ---------- side panel ----------
+const $=id=>document.getElementById(id);
+function panel(title,html){$('ctxTitle').textContent=title;$('ctx').innerHTML=html;}
+let current=null;
+function showInv(){current={t:'inv'};
+ let h=`<p>Cash <b>$${player.cash}</b> · Load ${load(player)}/${player.cap} · Fines paid $${player.fines}</p><table>`;
+ for(const k in player.inv)if(player.inv[k]>0){const it=G[k].item;
+  h+=`<tr><td>${G[k].n}</td><td>${player.inv[k]}</td><td>${it?`<button onclick="equip('${k}')">Equip</button>`:k==='bread'?`<button onclick="eat()">Eat</button>`:''}</td></tr>`}
+ h+='</table><p class=dim>Equipped</p><table>';
+ for(const s in player.equip){const e=player.equip[s];h+=`<tr><td>${G[e.k].n}</td><td class=dim>${G[e.k].item.d}</td><td>${e.dur>5000?'':e.dur}</td></tr>`}
+ h+='</table><p class=dim>Your land</p>';
+ const mine=plots.filter(p=>p.owner==='player');h+=mine.length?mine.map(p=>`Plot ${p.px},${p.py} (value $${plotValue(p)})`).join('<br>'):'None.';
+ const ls=plots.filter(p=>p.lease&&p.lease.who==='player'&&p.lease.until>time);
+ if(ls.length)h+='<br>Leases: '+ls.map(p=>`${p.px},${p.py} to day ${Math.floor(p.lease.until/1440)+1}`).join(', ');
+ panel('Inventory',h)}
+function eat(){if(player.inv.bread>0){player.inv.bread--;player.hunger=Math.min(100,player.hunger+35);showInv()}}
+
+function openBuilding(b){current={t:'b',b};
+ if(b.kind==='market')return marketPanel();
+ if(b.kind==='inn')return panel('Inn',`<p>Sleep 8 hours. Restores energy. Cost $10.</p><button onclick="sleep()">Sleep ($10)</button>`);
+ if(b.kind==='office')return openOffice(false);
+ const r=b.job?RECIPES[b.kind].find(r=>r.out===b.job):null;
+ let h=`<p>${b.name} cash $${Math.round(b.cash)} · Wage $${b.wage} per shift</p><p>Current job: ${r?`${G[r.out].n} (${Math.round(b.prog/r.t*100)}%)`:'idle, waits for inputs'}</p>`;
+ h+=`<p class=dim>Recipes (all inputs come from the market)</p><table>`;
+ for(const r of RECIPES[b.kind])h+=`<tr><td>${G[r.out].n}</td><td class=dim>${Object.entries(r.in).map(([k,v])=>v+' '+G[k].n).join(' + ')||'labour only'} · ${r.t} labour</td></tr>`;
+ h+=`</table><p>Stock: ${Object.entries(b.inv).filter(e=>e[1]>0).map(([k,v])=>v+' '+G[k].n).join(', ')||'none'}</p>`;
+ h+=`<button onclick="work()" ${b.cash<b.wage?'disabled':''}>Work a 2-hour shift (+$${b.wage}, -15 energy)</button>`;
+ panel(b.name,h)}
+function work(){const b=current.b;if(player.energy<15){log('<span class=bad>Too tired to work.</span>');return}
+ if(b.cash<b.wage){log(`${b.name} cannot pay wages.`);return}
+ b.cash-=b.wage;player.cash+=b.wage;player.energy-=15;b.labour+=3;time+=120;log(`You worked at the ${b.name}. +$${b.wage}.`);openBuilding(b)}
+function sleep(){if(player.cash<10){log('<span class=bad>No money for a bed.</span>');return}player.cash-=10;player.energy=100;time+=480;log('You slept 8 hours.');openBuilding(current.b)}
+function marketPanel(){
+ let h='<table><tr class=dim><td>Good</td><td>Stock</td><td>Price</td><td>You</td><td></td></tr>';
+ for(const k in G){const p=price(k),base=G[k].p,cls=p>base*1.2?'bad':p<base*.8?'good':'';
+  h+=`<tr title="${G[k].item?G[k].item.d:''}"><td>${G[k].n}</td><td>${market.stock[k]}</td><td class=${cls}>$${p}</td><td>${player.inv[k]||0}</td><td><button onclick="pbuy('${k}')">Buy</button> <button onclick="psell('${k}')" ${(player.inv[k]||0)?'':'disabled'}>Sell</button></td></tr>`}
+ panel('Market',h+'</table><p class=dim>Prices rise when stock is low. Market buys at 90% of price.</p><button onclick="psellAll()">Sell all raw goods</button>')}
+function pbuy(k){if(load(player)>=player.cap&&!G[k].item){log('Pack full.');return}if(!buy(player,k))log('<span class=bad>Cannot buy: no stock or no cash.</span>');marketPanel()}
+function psell(k){sell(player,k);marketPanel()}
+function psellAll(){let t=0;for(const k of['iron_ore','copper_ore','coal','gold_ore','oil'])t+=sell(player,k,player.inv[k]||0);log(`Sold raw goods for $${t}.`);marketPanel()}
+
+function openOffice(here){
+ const p=here?plotAt(player.x|0,player.y|0):null;current={t:'office',p};
+ let h='<p>Law of the land:</p><ul><li>Only the owner or a leaseholder may mine a plot.</li><li>Trespass mining: 25% chance per strike of a $40 fine, paid to the owner.</li><li>Unclaimed (Crown) land: stake a claim for its value.</li><li>Owned land: buy it (owner asks 130% of value) or lease mining rights for 3 days (25% of value).</li><li>Owners may sell land back to the Crown for 70% of value.</li></ul>';
+ if(p){const v=plotValue(p),deps=deposits.filter(d=>plotAt(d.x,d.y)===p&&d.amount>=1);
+  h+=`<h4>Plot ${p.px},${p.py}</h4><p>Owner: <b>${ownerName(p.owner)}</b> · Value $${v}</p><p>Deposits: ${deps.map(d=>`${G[d.type].n}${d.vein?' (VEIN)':''} ${Math.floor(d.amount)}`).join(', ')||'none'}</p>`;
+  if(p.lease&&p.lease.until>time)h+=`<p>Leased to ${ownerName(p.lease.who)} until day ${Math.floor(p.lease.until/1440)+1}</p>`;
+  if(p.owner==='crown')h+=`<button onclick="claim()">Stake claim ($${v})</button>`;
+  else if(p.owner==='player')h+=`<button onclick="sellCrown()">Sell to Crown ($${Math.round(v*.7)})</button>`;
+  else if(p.owner!=='town')h+=`<button onclick="buyPlot()">Buy from owner ($${Math.round(v*1.3)})</button> <button onclick="lease()">Lease 3 days ($${Math.round(v*.25)})</button>`;
+ }else h+='<p class=dim>Press B while standing on a plot to deal for that plot. Press O to view the ownership map.</p>';
+ panel('Land Office',h)}
+function claim(){const p=current.p,v=plotValue(p);if(player.cash<v)return log('<span class=bad>Not enough cash.</span>');player.cash-=v;p.owner='player';log(`You staked plot ${p.px},${p.py} for $${v}.`);openOffice(true)}
+function buyPlot(){const p=current.p,v=Math.round(plotValue(p)*1.3);if(player.cash<v)return log('<span class=bad>Not enough cash.</span>');
+ const o=npcs.find(n=>n.id===p.owner);player.cash-=v;if(o)o.cash+=v;log(`${ownerName(p.owner)} transferred plot ${p.px},${p.py} to you for $${v}.`);p.owner='player';p.lease=null;openOffice(true)}
+function lease(){const p=current.p,v=Math.round(plotValue(p)*.25);if(player.cash<v)return log('<span class=bad>Not enough cash.</span>');
+ const o=npcs.find(n=>n.id===p.owner);player.cash-=v;if(o)o.cash+=v;p.lease={who:'player',until:time+3*1440};log(`You leased mining rights on ${p.px},${p.py} for $${v}.`);openOffice(true)}
+function sellCrown(){const p=current.p,v=Math.round(plotValue(p)*.7);player.cash+=v;p.owner='crown';log(`You sold plot ${p.px},${p.py} to the Crown for $${v}.`);openOffice(true)}
+
+function log(s){logLines.unshift(`<div><span class=dim>D${day()} ${String(hour()).padStart(2,'0')}:00</span> ${s}</div>`);logLines.length=Math.min(logLines.length,60);$('log').innerHTML=logLines.join('')}
+
+// ---------- NPC AI ----------
+const bOf=k=>buildings.find(b=>b.kind===k);
+function goto(n,x,y,dt){const dx=x-n.x,dy=y-n.y,d=Math.hypot(dx,dy),s=3*dt;if(d<.3)return true;n.x+=dx/d*Math.min(s,d);n.y+=dy/d*Math.min(s,d);return false}
+const door=b=>({x:b.x+1.5,y:b.y+b.h+.5});
+function npcTick(n,dt,mins){
+ n.hunger-=mins*.04;
+ if(n.hunger<40&&n.state!=='eat'&&n.state!=='sell'){n.state='eat'}
+ const mk=door(bOf('market'));
+ switch(n.state){
+ case 'eat': if(goto(n,mk.x,mk.y,dt)){if(!n.inv.bread)buy(n,'bread');if(n.inv.bread){n.inv.bread--;n.hunger=100}else n.hunger+=20;n.state='idle'}break;
+ case 'idle':
+  if(n.cls==='miner'){
+   if(!n.pick&&n.cash>price('pickaxe')+30&&market.stock.pickaxe>0){if(goto(n,mk.x,mk.y,dt)&&buy(n,'pickaxe')){n.inv.pickaxe--;n.pick=1;log(`${n.name} bought a pickaxe.`)}break}
+   // land: buy an unclaimed plot with ore if rich
+   let mine=deposits.filter(d=>d.amount>=1&&d.type!=='oil'&&mayMine(n.id,plotAt(d.x,d.y)));
+   if(!mine.length){const free=deposits.filter(d=>d.amount>=1&&plotAt(d.x,d.y).owner==='crown');
+    const af=free.filter(d=>plotValue(plotAt(d.x,d.y))<=n.cash-20).sort((a,b)=>Math.hypot(a.x-n.x,a.y-n.y)-Math.hypot(b.x-n.x,b.y-n.y))[0];
+    if(af){const p=plotAt(af.x,af.y),v=plotValue(p);n.cash-=v;p.owner=n.id;log(`${n.name} (miner) staked plot ${p.px},${p.py} for $${v}.`);mine=[af]}
+    else{ // lease from another owner
+     const own=plots.filter(p=>p.owner!=='crown'&&p.owner!=='town'&&p.owner!==n.id&&p.owner!=='player'&&!(p.lease&&p.lease.until>time));
+     const lp=own.find(p=>deposits.some(d=>d.amount>=1&&plotAt(d.x,d.y)===p)&&plotValue(p)*.25<n.cash);
+     if(lp){const v=Math.round(plotValue(lp)*.25),o=npcs.find(x=>x.id===lp.owner);n.cash-=v;if(o)o.cash+=v;lp.lease={who:n.id,until:time+3*1440};log(`${n.name} leased ${lp.px},${lp.py} from ${o?o.name:'?'}.`)}
+     else{n.state='labour';n.target=bOf('refinery');}
+    }
+   }
+   if(mine.length){n.target=mine.sort((a,b)=>Math.hypot(a.x-n.x,a.y-n.y)-Math.hypot(b.x-n.x,b.y-n.y))[0];n.state='mine'}
+  }else if(n.cls==='hauler'){const oil=deposits.filter(d=>d.type==='oil'&&d.amount>=5);if(oil.length){n.target=pick(oil);n.state='mine'}}
+  else{n.state='labour';n.target=bOf(n.cls==='refiner'?'refinery':n.cls==='smith'?'smithy':'bakery')}
+  break;
+ case 'mine':{const d=n.target;if(!d||d.amount<1){n.state=load(n)?'sell':'idle';break}
+  if(goto(n,d.x+.5,d.y+1.2,dt)){n.timer+=mins;if(n.timer>=10){n.timer=0;const p=plotAt(d.x,d.y);
+   if(n.cls==='hauler'||mayMine(n.id,p)||!trespass(n,p)){const q=Math.min(1+n.pick,Math.floor(d.amount));d.amount-=q;n.inv[d.type]=(n.inv[d.type]||0)+q;}
+   if(load(n)>=n.cap||d.amount<1)n.state='sell'}}break}
+ case 'sell': if(goto(n,mk.x,mk.y,dt)){for(const k in n.inv)if(!G[k].item&&k!=='bread')sell(n,k,n.inv[k]);n.state='idle'}break;
+ case 'labour':{const b=n.target,dd=door(b);if(goto(n,dd.x,dd.y,dt)){n.timer+=mins;if(n.timer>=60){n.timer=0;
+   if(b.cash>=b.wage&&b.job){b.cash-=b.wage;n.cash+=b.wage;b.labour+=1}
+   if(R()<.15||(n.cls==='miner'&&R()<.3))n.state='idle'}}break}
+ }
+}
+// factories: choose most profitable recipe, buy inputs, convert labour into product, sell output
+function factoryTick(b,mins){
+ if(!RECIPES[b.kind])return;
+ if(b.kind==='bakery'&&R()<mins*.02)b.labour+=.5; // field yield regenerates
+ if(!b.job){let best=null,bp=0;
+  for(const r of RECIPES[b.kind]){let cost=0,ok=true;for(const k in r.in){if(market.stock[k]<r.in[k])ok=false;cost+=price(k)*r.in[k]}
+   const profit=price(r.out)*.9-cost-b.wage*r.t/3;if(ok&&cost<=b.cash&&profit>bp){bp=profit;best=r}}
+  if(best){for(const k in best.in){for(let i=0;i<best.in[k];i++){b.cash-=price(k);market.stock[k]--}}b.job=best.out;b.prog=0}}
+ if(b.job&&b.labour>0){const r=RECIPES[b.kind].find(r=>r.out===b.job);const u=Math.min(b.labour,r.t-b.prog);b.prog+=u;b.labour-=u;
+  if(b.prog>=r.t){b.job=null;market.stock[r.out]++;b.cash+=Math.round(price(r.out)*.9)}}
+}
+
+// ---------- loop ----------
+const cv=$('c'),cx=cv.getContext('2d');
+function resize(){cv.width=cv.clientWidth;cv.height=cv.clientHeight}addEventListener('resize',resize);
+let last=performance.now(),uiT=0;
+function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;
+ const mins=dt*20;time+=mins; // 1 real s = 20 game min
+ // player movement
+ let mx=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0),my=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0);
+ if(mx||my){const l=Math.hypot(mx,my),sp=(4+(player.equip.feet?player.equip.feet.v*4:0))*(player.energy<10?.5:1)*dt;
+  const nx=player.x+mx/l*sp,ny=player.y+my/l*sp;
+  if(tileAt(nx,player.y)!==C.WATER)player.x=nx;if(tileAt(player.x,ny)!==C.WATER)player.y=ny;
+  player.acc+=sp;if(player.acc>8){player.acc=0;wear('feet')}}
+ player.hunger-=mins*.035;if(player.hunger<0){player.hunger=0;player.energy-=mins*.1}
+ player.energy=Math.max(0,player.energy);
+ if(player.hunger<20&&player.inv.bread&&R()<.01){eat();log('You ate bread.')}
+ for(const n of npcs)npcTick(n,dt,mins);
+ for(const b of buildings)factoryTick(b,mins);
+ for(const d of deposits)if(d.regen)d.amount=Math.min(d.max,d.amount+d.regen*mins/10);
+ for(const k of['iron_ore','copper_ore','coal','gold_ore','oil'])if(R()<mins*.01&&market.stock[k]>0)market.stock[k]--; // export demand
+ if(R()<mins*.004&&market.stock.bread>0)market.stock.bread--;
+ draw();uiT+=dt;if(uiT>1&&current&&current.t==='b'&&current.b.kind!=='inn'){uiT=0;openBuilding(current.b)}
+ requestAnimationFrame(frame)}
+
+function draw(){const vw=cv.width,vh=cv.height,ox=player.x*T-vw/2,oy=player.y*T-vh/2;
+ cx.fillStyle='#14161a';cx.fillRect(0,0,vw,vh);
+ const x0=Math.max(0,ox/T|0),y0=Math.max(0,oy/T|0),x1=Math.min(W,(ox+vw)/T+1|0),y1=Math.min(H,(oy+vh)/T+1|0);
+ for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){const t=tiles[y*W+x];cx.fillStyle=TCOL[t];cx.fillRect(x*T-ox,y*T-oy,T,T);
+  if(t===C.FOREST){cx.fillStyle='#1f4a22';cx.fillRect(x*T-ox+5,y*T-oy+3,6,8)}
+  if(overlay){const p=plotAt(x,y);if(p.owner!=='crown'){cx.fillStyle=p.owner==='player'?'#ffffff40':p.owner==='town'?'#3a6a9a50':'#e0a93b35';cx.fillRect(x*T-ox,y*T-oy,T,T)}}}
+ // plot grid
+ cx.strokeStyle=overlay?'#0008':'#0002';cx.beginPath();for(let x=0;x<=W;x+=PS){cx.moveTo(x*T-ox,-oy);cx.lineTo(x*T-ox,H*T-oy)}for(let y=0;y<=H;y+=PS){cx.moveTo(-ox,y*T-oy);cx.lineTo(W*T-ox,y*T-oy)}cx.stroke();
+ for(const d of deposits){if(d.amount<1)continue;const f=d.vein?1:Math.max(.35,d.amount/d.max);
+  cx.fillStyle=ORE_COLOR[d.type];const r=(d.vein?7:5)*f+1;cx.beginPath();cx.arc(d.x*T+8-ox,d.y*T+8-oy,r,0,7);cx.fill();
+  if(d.vein){cx.strokeStyle='#fff';cx.stroke()}}
+ cx.font='10px system-ui';cx.textAlign='center';
+ for(const b of buildings){cx.fillStyle=b.col;cx.fillRect(b.x*T-ox,b.y*T-oy,b.w*T,b.h*T);cx.fillStyle='#fff';cx.fillText(b.name,(b.x+b.w/2)*T-ox,(b.y+1.2)*T-oy)}
+ for(const n of npcs){cx.fillStyle=n.col;cx.beginPath();cx.arc(n.x*T-ox,n.y*T-oy,4,0,7);cx.fill()}
+ cx.fillStyle='#fff';cx.strokeStyle='#000';cx.beginPath();cx.arc(player.x*T-ox,player.y*T-oy,5.5,0,7);cx.fill();cx.stroke();
+ if(overlay){cx.fillStyle='#000c';for(const p of plots){if(p.owner==='crown')continue;const px=(p.px*PS+4)*T-ox,py=(p.py*PS+4)*T-oy;if(px<-50||py<-20||px>vw+50||py>vh+20)continue;cx.fillStyle='#fff';cx.fillText(ownerName(p.owner),px,py)}}
+ const h=hour(),dark=h<5||h>=21?.55:h<7?.3:h>=19?.3:0;if(dark){cx.fillStyle=`rgba(10,15,40,${dark})`;cx.fillRect(0,0,vw,vh)}
+ // hover info for nearest deposit
+ const d=nearDeposit(player);let tip='';if(d){const p=plotAt(d.x,d.y);tip=`\n${G[d.type].n}${d.vein?' VEIN':''}: ${Math.floor(d.amount)} left · owner ${ownerName(p.owner)}${mayMine('player',p)?' (you may mine)':' (NOT yours)'}`}
+ const p=plotAt(player.x|0,player.y|0);
+ $('hud').textContent=`Day ${day()} ${String(h).padStart(2,'0')}:${String(Math.floor(time%60)).padStart(2,'0')}  $${player.cash}\nEnergy ${player.energy|0}  Hunger ${player.hunger|0}  Load ${load(player)}/${player.cap}\nPlot ${p.px},${p.py}: ${ownerName(p.owner)}`+tip;
+}
+gen();resize();showInv();requestAnimationFrame(frame);
+</script>
+</body>
+</html>
