@@ -129,6 +129,19 @@ Work stations: **furnace** (Refinery, Smelters), **anvil** (Smithy, Forges), **o
 - Types: Forge (anvil, tools), Bakehouse (oven, bread), Smelter (furnace, ingots for the Market Hall), Trading Post (buys from makers, sells to the town).
 - Each day an NPC with enough cash may build a business for the most short good (55% chance when a lot is free and a shortage is above 20%).
 
+Building on your own lot (`js/build.js`):
+
+1. **Mark the site.** Choose the business type in the lot window. The lot stays open ground. Timber and iron ingots in your pack go onto the site at once, up to what the plan needs.
+2. **Bring the materials over time.** Each material row shows what is on the site. **Drop off** puts what you carry on the site. **Take 1** and **Take all** put materials back in your pack.
+3. **Order the rest by wagon.** The Market Hall sells the missing materials at its price, plus a cart fee of 10% (at least 5 × P). The wagon unloads at the site after 2 game hours. The button shows the exact price you pay.
+4. **Start building.** It uses any missing materials still in your pack, then needs 150 × P for the builders and 100 × P for the till. The lot becomes solid. Anybody on the lot moves to its door.
+5. **Stop the builders** during the build: 75% of the timber and iron goes back to the pile, the till money comes back, and the builders keep their fee.
+6. **Tear it down** (lot window, or the Manage tab of your business): the till money comes to you, the shop stock goes to the pile, and 50% of the timber and iron (8 timber, 2 iron ingots) comes back. The lot stays yours and the ground is restored.
+
+Materials and goods in the pile stay on the lot until you take them. **Cancel the plan** keeps the pile.
+
+A player who stands inside solid ground moves to the nearest open spot. This frees a player who was caught by an earlier version, where the builders closed the lot around the player.
+
 ## Orders
 
 - A business posts an order when it cannot buy an input at the market, or when its shelves are empty while the town is short. It posts only if it can pay for the order.

@@ -333,7 +333,7 @@ function drawLabels(g){const p=S.player,z=cam.zoom;
     const z=bizOfBld(b),nm=b.name+(z?(z.owner==='player'?' · yours':z.closedUntil>S.time?' · closed':''):'');
     const a=clamp((6-d)/2,0,1);g.globalAlpha=a;const w=g.measureText(nm).width+16;g.fillStyle='rgba(20,14,8,.78)';rrect(g,s.x-w/2,s.y-16,w,20,4);g.fill();g.strokeStyle='rgba(212,165,74,.7)';g.stroke();g.fillStyle='#f3e3c0';g.fillText(nm,s.x,s.y-2)}
   if(S.lots)for(const l of S.lots){if(l.biz)continue;const L=world.lots[l.i],d=dist(p.x,p.y,L.door.x+.5,L.door.y);if(d>5)continue;const s=toScreen(L.x+L.w/2,L.y);
-    const nm=l.build?`Building: ${BIZ_TYPES[l.build.type].n}`:l.owner==='player'?`Lot ${l.i+1} · yours, ready to build`:`Lot ${l.i+1} · for sale ${money(lotPrice())}`;g.globalAlpha=clamp((5-d)/2,0,1);const w=g.measureText(nm).width+16;
+    const nm=l.build?`Building: ${BIZ_TYPES[l.build.type].n}`:l.plan?`Site: ${BIZ_TYPES[l.plan.type].n} · ${siteText(l)}`:l.owner==='player'?`Lot ${l.i+1} · yours${storeCount(l)?' · materials pile':', ready to build'}`:`Lot ${l.i+1} · for sale ${money(lotPrice())}`;g.globalAlpha=clamp((5-d)/2,0,1);const w=g.measureText(nm).width+16;
     g.fillStyle='rgba(20,14,8,.78)';rrect(g,s.x-w/2,s.y-16,w,20,4);g.fill();g.strokeStyle='rgba(212,165,74,.7)';g.stroke();g.fillStyle='#f3e3c0';g.fillText(nm,s.x,s.y-2)}
   g.globalAlpha=1;
   if(UI.hoverNpc){const n=UI.hoverNpc,s=toScreen(n.x,n.y);g.font='600 11px Inter,system-ui,sans-serif';const txt=`${n.name} · ${CLASSES[n.cls].n}`,w=g.measureText(txt).width+12;
@@ -425,7 +425,7 @@ function drawLot(g,l,L){const x=L.x*TS,y=L.y*TS,w=L.w*TS,h=L.h*TS;
   else{g.strokeStyle='rgba(230,210,160,.55)';g.lineWidth=.8;g.setLineDash([2,2]);g.strokeRect(x+3,y+5,w-6,h-6);g.setLineDash([]);
     g.fillStyle='#6a4a2a';for(const[px,py]of[[x+3,y+5],[x+w-4,y+5],[x+3,y+h-1],[x+w-4,y+h-1]])g.fillRect(px,py-3,1,4);
     const sx=Math.round(x+w/2),sy=y+h-1;g.fillStyle='#5a3a22';g.fillRect(sx,sy-11,1,11);g.fillStyle='#e8d8b0';g.fillRect(sx-6,sy-16,13,7);
-    g.fillStyle=l.owner==='player'?'#3a8a3a':'#a83a2a';g.fillRect(sx-4,sy-14,9,1);g.fillRect(sx-4,sy-12,6,1)}}
+    g.fillStyle=l.owner==='player'?'#3a8a3a':'#a83a2a';g.fillRect(sx-4,sy-14,9,1);g.fillRect(sx-4,sy-12,6,1);drawSitePiles(g,l,L)}}
 
 const ICON_IMG={};function iconImg(k){if(!ICON_IMG[k]){const im=new Image();im.src=iconOf(k);ICON_IMG[k]=im}return ICON_IMG[k]}
 function needBadge(g,x,y,k,have){g.save();g.fillStyle=have?'rgba(60,40,10,.92)':'rgba(20,14,8,.8)';g.beginPath();g.arc(x,y-14,14,0,7);g.fill();g.lineWidth=have?2.5:1.2;g.strokeStyle=have?'#ffd23f':'rgba(212,165,74,.6)';g.stroke();

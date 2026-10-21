@@ -108,7 +108,7 @@ function genWorld(seed){
   for(let py=0;py<PH;py++)for(let px=0;px<PW;px++)plots.push({id:py*PW+px,px,py,owner:'crown',lease:null,arrears:0});
   for(const p of plots){const x0=p.px*PS,y0=p.py*PS;if(x0+PS>cx-19&&x0<cx+19&&y0+PS>cy-5&&y0<cy+9)p.owner='town'}
 
-  buildMinimap();
+  captureLotGround();buildMinimap();
   return {deposits,plots};
 }
 function standTile(x,y){for(const[dx,dy]of[[0,1],[1,1],[-1,1],[1,0],[-1,0],[0,-1]]){if(walkable(x+dx,y+dy))return{x:x+dx,y:y+dy}}return null}

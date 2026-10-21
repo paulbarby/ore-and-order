@@ -84,7 +84,7 @@ function bizManage(z){const T=BIZ_TYPES[z.type],P=S.money.P,a=n=>Math.round(n*P)
     for(const k of Object.keys(z.make).filter(k=>z.make[k]>0)){const d=S.dem[k];h+=`<tr><td>${ico(k)}</td><td>${GOODS[k].n}</td><td><b>${money(shopPrice(z,k))}</b> <small class="dim">${z.prices[k]!=null?'fixed':'auto'}</small></td><td>${money(refPrice(k))}</td><td>${d?`<span class="${pctCls(d.ema)}">${Math.round(d.ema*100)}% short</span>`:''}</td>
       <td class="btns"><button onclick="bizSetPrice('${z.id}','${k}',-.1)">−10%</button><button onclick="bizSetPrice('${z.id}','${k}',.1)">+10%</button><button onclick="bizSetPrice('${z.id}','${k}',null)">Auto</button></td></tr>`}
     h+=`</table><p class="dim">Customers buy from the cheapest shop. Above 2.4 times the fair price, nobody buys. Auto prices go up when goods are short.</p>`}
-  h+=`<h4>Profit each day</h4><canvas class="chart" data-bizprofit="${z.id}" height="70"></canvas><button onclick="sellBizToTown('${z.id}')">Sell to the Town · ${money(bizValue(z)*.8)}</button>`;return h}
+  h+=`<h4>Profit each day</h4><canvas class="chart" data-bizprofit="${z.id}" height="70"></canvas><button onclick="sellBizToTown('${z.id}')">Sell to the Town · ${money(bizValue(z)*.8)}</button>${z.lot!=null?` <button onclick="tearDown('${z.id}')" data-tip="You keep the lot. The till money comes to you, the stock goes to a pile on the lot, and half of the timber and iron comes back.">Tear it down</button>`:''}`;return h}
 function avgWage(z){const o=S.biz.filter(x=>x!==z&&BIZ_TYPES[x.type].wage);return o.length?Math.round(o.reduce((a,x)=>a+x.wage,0)/o.length):0}
 function pRetail(id,k,q){const z=bizById(id),p=S.player;if(!GOODS[k].item&&load(p)+q>p.cap){toast('Your pack is full.','bad');return}const r=retailBuy(p,z,k,q);
   if(!r.n){toast('You cannot buy that now.','bad');return}sfx('coins');addXp('trade',1);toast(`Bought ${r.n} ${GOODS[k].n} for ${money(r.spent)}.`,'good');checkAch();renderWin()}
@@ -108,7 +108,8 @@ function demandTable(){const F=S.folk;let h=`<div class="stats4"><div><small>Tow
   return h+'</table><h4>Townsfolk</h4><canvas class="chart" data-folk="1" height="70"></canvas>'}
 
 // ---------- town lots ----------
-function winLot(b){const l=S.lots[b.lotI],L=world.lots[l.i],P=S.money.P,p=S.player;$('#winPortrait').src=portrait('clerk');$('#winGreet').textContent='Town land for new businesses. Buy the lot, bring timber and iron, and the builders do the rest.';
+function winLot(b){return lotPanel(b)}
+function winLotOld(b){const l=S.lots[b.lotI],L=world.lots[l.i],P=S.money.P,p=S.player;$('#winPortrait').src=portrait('clerk');$('#winGreet').textContent='Town land for new businesses. Buy the lot, bring timber and iron, and the builders do the rest.';
   if(l.biz){const z=bizById(l.biz);return`<p>The ${z.name} stands here.</p>`}
   if(l.build)return`<p>Builders are at work on ${an(BIZ_TYPES[l.build.type].n)} for ${ownerName(l.build.owner)}. It opens in ${hrsLeft(l.build.until)}.</p>`;
   if(l.owner!=='player')return`<div class="bigval">${money(lotPrice())}<small>Lot ${l.i+1}: ${L.w}×${L.h} tiles on ${L.y<world.cy?'Main Street':'Second Street'}. The money goes to the Town.</small></div><button class="gold big" onclick="playerBuyLot(${l.i})" ${p.cash<lotPrice()?'disabled':''}>Buy this lot</button>`;

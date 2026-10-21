@@ -190,5 +190,5 @@ function runElection(){const t=S.town;if(!t.rival||t.rival===t.mayor){const r=[.
 function eventsHourly(){const p=S.player;
   if(eventActive('bandits')&&isNight()&&!S.demo){const q=plotAt(p.x,p.y);if(q.owner!=='town'&&p.cash>30*S.money.P&&Math.random()<(p.equip.hand?.06:.12)*(projectDone('deputies')?.5:1)){
     const lost=Math.round(p.cash*.3);p.cash-=lost;sfx('whistle');cam.shake=5;jlog('you',`Bandits robbed you of ${money(lost)} in notes. Your coins are safe.`,{toast:'bad'})}}
-  ordersHourly();finishBuilds();updateRetailRefs()}
+  ordersHourly();finishBuilds();deliveriesTick();updateRetailRefs()}
 function fireworks(x,y){for(let i=0;i<6;i++)setTimeout(()=>{if(!S)return;fx.firework(x+rnd(-6,6),y+rnd(-4,2));sfx('pick',.3)},i*350)}

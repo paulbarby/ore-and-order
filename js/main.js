@@ -34,7 +34,7 @@ function newState(seed,o={}){
 function recalc(){const p=S.player;p.cap=25+(p.equip.back?p.equip.back.v:0)}
 function canStand(x,y){return canStandAt(x,y)}
 let footT=0;
-function playerUpdate(dt,mins){const p=S.player;
+function playerUpdate(dt,mins){const p=S.player;unstickPlayer();
   if(p.bubble){p.bubble.t+=dt;if(p.bubble.t>p.bubble.dur)p.bubble=null}
   if(p.swing>0)p.swing=Math.max(0,p.swing-dt*3.4);p.strikeCD-=dt;
   let mx=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0),my=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0);
@@ -174,7 +174,7 @@ function findTarget(){const p=S.player;if(p.dead){UI.target=null;return}if(S.whe
   for(const dp of S.deposits){if(dp.amount<1)continue;const d=dist(p.x,p.y,dp.x+.5,dp.y+.6);if(d<1.7&&d<bd){bd=d;const q=plotAt(dp.x,dp.y),ok=mayMine('player',q);
     best={kind:'dep',o:dp,bad:!ok,label:`${dp.type==='oil'?'Pump':'Mine'} ${GOODS[dp.type].n}${dp.vein?' (vein)':''}${ok?'':' · NOT YOUR CLAIM'}`}}}
   const bd2=dist(p.x,p.y,world.board.x,world.board.y+.3);if(bd2<1.5&&bd2<bd){bd=bd2;best={kind:'board',label:'Notice board · '+S.orders.length+' orders',at:{x:world.board.x,y:world.board.y-1}}}
-  for(const l of S.lots){if(l.biz)continue;const L=world.lots[l.i],d=dist(p.x,p.y,L.door.x+.5,L.door.y);if(d<1.6&&d<bd){bd=d;best={kind:'lot',l,label:l.build?'Building site':l.owner==='player'?'Your lot: build here':'Lot '+(l.i+1)+' for sale',at:{x:L.door.x+.5,y:L.door.y-1}}}}
+  for(const l of S.lots){if(l.biz)continue;const L=world.lots[l.i],d=dist(p.x,p.y,L.door.x+.5,L.door.y);if(d<1.6&&d<bd){bd=d;best={kind:'lot',l,label:lotLabel(l),at:{x:L.door.x+.5,y:L.door.y-1}}}}
   if(!best||bd>1.1){const tx=p.x|0,ty=p.y|0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!inB(tx+dx,ty+dy)||!world.fieldIdx)continue;const j=world.fieldIdx[idx(tx+dx,ty+dy)];if(j>=0&&S.crops[j]>=1){const d=dist(p.x,p.y,tx+dx+.5,ty+dy+.5);if(d<1.2&&d<bd){bd=d;best={kind:'field',j,label:'Harvest wheat',at:{x:tx+dx+.5,y:ty+dy-.2}}}}}}
   if(!best){let ti=-1,td=1.3;for(let i=0;i<world.trees.length;i++){const t=world.trees[i];if(t.k!=='pine'&&t.k!=='oak')continue;if(Math.abs(t.x/TS-p.x)>2||Math.abs(t.y/TS-p.y)>2)continue;const d=dist(p.x,p.y,t.x/TS,t.y/TS);if(d<td&&!(S.cut[i]>S.time)){td=d;ti=i}}
     if(ti>=0){const t=world.trees[ti];best={kind:'tree',i:ti,bad:!p.equip.axe,label:p.equip.axe?'Cut timber':'Cut timber (you need an axe)',at:{x:t.x/TS,y:t.y/TS-1.6}}}}

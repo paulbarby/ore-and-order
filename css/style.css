@@ -240,3 +240,8 @@ table{width:100%;border-collapse:collapse}td,th{padding:5px 4px;border-bottom:1p
 .wsout{height:52vh;overflow:auto;background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:12px;user-select:text}
 .wshelp{margin:0;white-space:pre-wrap;font:11px/1.5 Consolas,'Courier New',monospace;color:var(--text)}
 @media (max-width:900px){#questTrack{display:none}.wsgrid{grid-template-columns:1fr}#quickbar{bottom:70px}}
+
+/* building site progress */
+.sitebar{position:relative;width:130px;height:14px;border-radius:7px;background:rgba(0,0,0,.45);border:1px solid var(--line);overflow:hidden;display:inline-block;vertical-align:middle}
+.sitebar i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#8a6a3a,#d8b078)}
+.sitebar span{position:relative;font:700 10px var(--sans);padding-left:6px;text-shadow:0 1px 2px #000}

@@ -43,7 +43,7 @@ function addExpansionShops(own){const P=S.money.P;own=own||(cls=>{const n=S.npcs
   return made}
 function addLotBuilding(l,z){const L=world.lots[l.i],BT=BIZ_TYPES[z.type];if(world.buildings.some(b=>b.lot===l.i))return null;
   const b={kind:z.type,name:z.name,x:L.x,y:L.y,w:L.w,h:L.h,door:{...L.door},roof:BT.roof||'#5a3a2a',wall:BT.wall||'#b89a74',lot:l.i,bizId:z.id};
-  for(let y=b.y;y<b.y+b.h;y++)for(let x=b.x;x<b.x+b.w;x++)world.tiles[idx(x,y)]=T.BUILD;world.tiles[idx(b.door.x,b.door.y)]=T.ROAD;
+  for(let y=b.y;y<b.y+b.h;y++)for(let x=b.x;x<b.x+b.w;x++)world.tiles[idx(x,y)]=T.BUILD;world.tiles[idx(b.door.x,b.door.y)]=T.ROAD;ejectFromLot(l);
   world.buildings.push(b);buildingSprite(b);return b}
 
 // ---------- prices ----------
@@ -173,7 +173,7 @@ function lotPrice(){return Math.round(260*S.money.P)}
 function freeLots(){return S.lots.filter(l=>!l.biz&&!l.build&&l.owner!=='player')}
 function buildCostCash(){return Math.round(BUILD_COST.cash*S.money.P)}
 function startBuild(l,owner,type,cash){const L=world.lots[l.i];l.owner=owner;l.build={type,owner,until:S.time+(owner==='player'?1:2)*1440,cash:Math.round(cash)};
-  for(let y=L.y;y<L.y+L.h;y++)for(let x=L.x;x<L.x+L.w;x++)world.tiles[idx(x,y)]=T.BUILD;world.tiles[idx(L.door.x,L.door.y)]=T.ROAD}
+  for(let y=L.y;y<L.y+L.h;y++)for(let x=L.x;x<L.x+L.w;x++)world.tiles[idx(x,y)]=T.BUILD;world.tiles[idx(L.door.x,L.door.y)]=T.ROAD;ejectFromLot(l)}
 function finishBuilds(){for(const l of S.lots){if(!l.build||S.time<l.build.until)continue;const b=l.build,o=b.owner;
   const name=o==='player'?`${S.player.name.split(' ').pop()}'s ${BIZ_TYPES[b.type].n}`:`${(S.npcs.find(n=>n.id===o)?.name||'New').split(' ').pop()}'s ${BIZ_TYPES[b.type].n}`;
   const z=makeBiz(b.type,o,{lot:l.i,cash:b.cash,name});l.biz=z.id;l.build=null;const bl=addLotBuilding(l,z);
